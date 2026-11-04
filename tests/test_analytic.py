@@ -83,7 +83,15 @@ def test_exponential_on_rs_reaches_its_limiting_shape(dtype, device):
     """Not a member of RS: it is the limit lambda_3 -> inf, lambda_4 -> 0 or the like."""
     g = gpu.GLD("RS", device=device)
     fit = g.fit_LMM(torch.as_tensor(grid(stats.expon()), dtype=dtype, device=device))
-    assert ks("RS", fit.cpu().numpy(), stats.expon()) < 2e-3
+    assert ks("RS", fit.cpu().numpy(), stats.expon()) < 3e-4
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_location_survives_rounding_near_the_limit(seed):
+    """lambda_2 ~ 4e-5 here, so an absolute error of one eps in the location's numerator costs 1e-3."""
+    data = grid(stats.expon()) * (1 + 1e-7 * np.random.default_rng(seed).standard_normal(N))
+    fit = gpu.GLD("RS", device="cpu").fit_LMM(torch.as_tensor(data, dtype=F32))
+    assert ks("RS", fit.numpy(), stats.expon()) < 3e-4
 
 
 def test_float32_and_float64_agree_on_the_fit_quality(ptype, device):

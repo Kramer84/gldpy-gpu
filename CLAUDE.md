@@ -50,4 +50,4 @@ Verify with `torch.cuda.get_arch_list()` containing `sm_61`.
 - Generated, do not edit: `uv.lock`, `dist/`, `.venv/`, `benchmarks/results/`.
 - Remote: `origin` = git@github.com:Kramer84/gldpy-gpu.git. No secrets/`.env` in this repo.
 
-Last validated against the real files: 2026-11-04 (`uv run pytest -m "not gpu_speed"`: 1389 passed, 6 skipped; `-m gpu_speed`: 2 passed).
+Last validated against the real files: 2026-11-04 (`uv run pytest -m "not gpu_speed"`: 1393 passed, 6 skipped; `-m gpu_speed`: 2 passed).

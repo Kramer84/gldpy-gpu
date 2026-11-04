@@ -227,7 +227,7 @@ def _lmm_equations(param_type: str, a1: torch.Tensor, a2: torch.Tensor, a3: torc
 
     def param_fn(l3, l4):
         l2 = (terms(l3)[0] + terms(l4)[0]) / a2
-        shift = 1.0 / (1.0 + l4) - 1.0 / (1.0 + l3)
+        shift = (l3 - l4) / ((1.0 + l3) * (1.0 + l4))  # 1/(1+l4) - 1/(1+l3), without subtracting two numbers near 1
         l1 = a1 + (shift if rs else -shift) / l2
         return torch.stack([l1, l2, l3, l4], dim=-1)
 

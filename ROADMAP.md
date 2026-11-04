@@ -69,3 +69,4 @@ Candidates, not done, in order of value:
 - `fit_ML`: `lr` was in raw parameter units, points outside the support got a fake density. Fixed (standardized data, `correct_supp`, rejected steps).
 - `torch.quantile` raised above 2**24 elements, killing `fit_PM` on large data. Fixed.
 - Fits now raise `ValueError` on NaN, inf or constant data.
+- float32 `fit_LMM` near limiting shapes: the location subtracted two numbers near 1, then divided by a small lambda_2. Found when CI, on another torch and CPU, crossed the test limit by rounding alone. Fixed.

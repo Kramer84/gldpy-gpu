@@ -34,8 +34,8 @@ Because the grid has $n$ points, even a perfect fit has KS of order $1/(2n) = 2.
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | uniform | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 5.6e-02 | 2.5e-05 | 2.5e-05 | 2.4e-05 | 1.5e-09 | 1.7e-04 | 1.7e-04 |
 | logistic | 3.7e-06 | 3.7e-06 | 2.6e-06 | 2.4e-06 | 2.0e-05 | 2.0e-05 | 2.0e-05 | 3.0e-05 | 2.4e-04 | 3.1e-04 | 3.1e-04 |
-| exponential | fails | fails | 6.5e-05 | 1.1e-03 | fails | fails | 2.9e-05 | 2.8e-04 | fails | 1.8e-01 | 1.6e-01 |
-| normal | 3.9e-04 | 3.9e-04 | 3.9e-04 | 3.9e-04 | 3.5e-03 | 5.1e-04 | 5.1e-04 | 5.1e-04 | 1.0e-03 | 1.4e-03 | 1.4e-03 |
+| exponential | fails | fails | 6.5e-05 | 6.5e-05 | fails | fails | 2.9e-05 | 2.8e-04 | fails | 1.8e-01 | 1.7e-01 |
+| normal | 3.9e-04 | 3.9e-04 | 3.9e-04 | 3.9e-04 | 3.5e-03 | 5.1e-04 | 5.1e-04 | 5.1e-04 | 1.0e-03 | 1.4e-03 | 1.5e-03 |
 | student_t5 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 9.7e-03 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 8.7e-02 | 2.0e-03 | 2.0e-03 |
 | gamma_2 | 8.2e-03 | 8.2e-03 | 8.2e-03 | 8.2e-03 | 1.4e-02 | 1.4e-02 | 1.4e-02 | 1.4e-02 | 1.3e-02 | 1.7e-02 | 1.7e-02 |
 | lognormal_0.25 | 5.6e-03 | 5.6e-03 | 5.6e-03 | 5.6e-03 | 5.5e-03 | 5.5e-03 | 5.5e-03 | 5.5e-03 | 1.0e-02 | 8.1e-03 | 8.1e-03 |
@@ -48,13 +48,13 @@ Because the grid has $n$ points, even a perfect fit has KS of order $1/(2n) = 2.
 <!-- table:ks_FMKL -->
 | Distribution | LMM orig. | LMM NumPy | LMM f64 | LMM f32 | PM orig. | PM NumPy | PM f64 | PM f32 | MM NumPy | ML f64 | ML f32 |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| uniform | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.6e-09 | 9.3e-04 | 4.3e-04 |
-| logistic | 2.6e-06 | 2.6e-06 | 2.6e-06 | 2.6e-06 | 2.0e-05 | 2.0e-05 | 2.0e-05 | 2.0e-05 | 2.4e-04 | 3.9e-04 | 4.0e-04 |
+| uniform | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.5e-05 | 2.6e-09 | 9.3e-04 | 7.9e-04 |
+| logistic | 2.6e-06 | 2.6e-06 | 2.6e-06 | 2.6e-06 | 2.0e-05 | 2.0e-05 | 2.0e-05 | 2.0e-05 | 2.4e-04 | 3.9e-04 | 3.9e-04 |
 | exponential | 1.3e-02 | 1.3e-02 | 5.3e-04 | 5.3e-04 | 1.3e-02 | 1.3e-02 | 2.4e-03 | 2.4e-03 | 2.5e-02 | 4.2e-03 | 4.2e-03 |
-| normal | 3.9e-04 | 3.9e-04 | 3.9e-04 | 3.9e-04 | 5.1e-04 | 5.1e-04 | 5.1e-04 | 5.1e-04 | 1.0e-03 | 1.4e-03 | 1.4e-03 |
+| normal | 3.9e-04 | 3.9e-04 | 3.9e-04 | 3.9e-04 | 5.1e-04 | 5.1e-04 | 5.1e-04 | 5.1e-04 | 1.0e-03 | 1.4e-03 | 1.5e-03 |
 | student_t5 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 1.6e-03 | 7.7e-03 | 2.4e-03 | 2.4e-03 |
-| gamma_2 | 8.4e-03 | 8.4e-03 | 8.4e-03 | 8.4e-03 | 1.2e-02 | 1.2e-02 | 1.2e-02 | 1.2e-02 | 3.0e-02 | 2.1e-02 | 1.9e-02 |
-| lognormal_0.25 | 3.2e-03 | 3.2e-03 | 3.2e-03 | 3.2e-03 | 4.7e-03 | 4.7e-03 | 4.7e-03 | 4.7e-03 | 5.2e-03 | 4.0e-02 | 4.1e-02 |
+| gamma_2 | 8.4e-03 | 8.4e-03 | 8.4e-03 | 8.4e-03 | 1.2e-02 | 1.2e-02 | 1.2e-02 | 1.2e-02 | 3.0e-02 | 2.1e-02 | 2.1e-02 |
+| lognormal_0.25 | 3.2e-03 | 3.2e-03 | 3.2e-03 | 3.2e-03 | 4.7e-03 | 4.7e-03 | 4.7e-03 | 4.7e-03 | 5.2e-03 | 4.0e-02 | 3.7e-02 |
 | beta_2_2 | 4.4e-04 | 4.4e-04 | 4.4e-04 | 4.4e-04 | 1.0e-03 | 1.0e-03 | 1.0e-03 | 1.0e-03 | 3.8e-04 | 5.0e-04 | 5.0e-04 |
 | beta_2_5 | 3.2e-03 | 3.2e-03 | 3.2e-03 | 3.2e-03 | 5.1e-03 | 5.1e-03 | 5.1e-03 | 5.1e-03 | 5.9e-03 | 8.0e-03 | 7.5e-03 |
 <!-- /table -->
@@ -92,9 +92,9 @@ Because the grid has $n$ points, even a perfect fit has KS of order $1/(2n) = 2.
 <!-- table:precision -->
 | Method | Cases | Median |ΔKS| | Largest |ΔKS| |
 |---|---|---|---|
-| LMM | 27 | 2.1e-08 | 1.1e-03 (RS, exponential) |
+| LMM | 27 | 2.1e-08 | 4.6e-07 (VSL, exponential) |
 | PM | 27 | 1.9e-08 | 2.5e-04 (RS, exponential) |
-| ML | 27 | 5.8e-06 | 2.1e-02 (RS, exponential) |
+| ML | 27 | 5.8e-06 | 1.4e-02 (RS, exponential) |
 <!-- /table -->
 
 The median difference is far below any practical concern, and the fit in float32 is as good as in float64. The largest differences occur for RS on the exponential, which is not a member of RS but a limiting shape with $\lambda_3, \lambda_4 \to$ extreme values.
@@ -158,9 +158,9 @@ The median difference is far below any practical concern, and the fit in float32
 These are measured and not hidden. Each is also a reason to check results before relying on them in production.
 
 1. **Maximum likelihood is a local method, with a default of 300 Adam steps that may not converge.** On the deterministic grid, against the original's Nelder-Mead (mean NLL above the entropy, FMKL, $n = 5000$): lognormal(0.25) $+0.0079$ against $+0.0042$; Beta(2, 5) $+0.00084$ against $+0.00096$; gamma(2) $+0.00221$ against $+0.00220$. On the lognormal, 600 steps reach about $+0.0009$. Raise `steps` where it matters, and compare with the L-moment fit. A quasi-Newton polish is on the roadmap.
-2. **RS on the exponential with maximum likelihood** stops at a poor local optimum, with KS above $0.1$ where L-moments reach $6.5\cdot10^{-5}$. The exponential is not in the RS family, except as a limit.
+2. **RS on the exponential with maximum likelihood** stops at a poor local optimum, with KS above $0.1$ where L-moments reach $6.5\cdot10^{-5}$. The exponential is not in the RS family, except as a limit. L-moments reach that value on the exact grid only: on 12 random samples of 20 000, in both float32 and float64, RS `fit_LMM` had a median KS of $1.9\cdot10^{-2}$, and above $10^{-2}$ in 8 of them, because it settled on a distant root.
 3. **Parameters are not always identified.** FMKL(1, 1) and FMKL(2, 2) are the same uniform distribution, and the RS logistic limit has $\lambda \to 0$ with $\lambda_2 \to 0$. The distribution is then well determined, the parameter values are not. Compare distributions, not parameter vectors.
 4. **Goodness-of-fit p-values are not calibrated** when the parameters were estimated from the same data ([U07](upstream-bugs.md#u07-gof_tests-raises-on-data-outside-the-support)).
 5. **The percentile estimators use only 5 sample quantiles**, so they have a larger variance than L-moments. The protocol here, without sampling noise, does not show this.
 6. **`fit_MPS`, `fit_starship`, `fit_MM` and `fit_curve` exist only in the NumPy class.** Tests cover `fit_MPS`'s support and `fit_MM` parity. `fit_starship`, `fit_curve` and the plotting methods are only as tested as they were upstream, apart from the seed and statistics corrections.
-7. **Tested platforms.** The full suite ran on Linux, with Python 3.11, PyTorch 2.14.1+cu126 and a GTX 1070 (CUDA 12.6), on both the CPU and CUDA. The torch-free part ran from a clean environment on Python 3.11 and 3.12. CI runs the suite without torch and with CPU torch on Linux, on Python 3.9 and 3.12. Python 3.10 has not been run, and no other GPU or operating system has been tested.
+7. **Tested platforms.** The full suite ran on Linux, with Python 3.11, PyTorch 2.14.1+cu126 and a GTX 1070 (CUDA 12.6), on both the CPU and CUDA. The torch-free part ran from a clean environment on Python 3.11 and 3.12. CI runs the suite without torch and with CPU torch on Linux, on Python 3.9 and 3.12, and the optional-dependency tests on the bare install. Python 3.10 has not been run, and no other GPU or operating system has been tested.

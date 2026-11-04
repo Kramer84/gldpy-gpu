@@ -68,6 +68,10 @@ defect against the real PyPI package and shows the correction, and it checks tha
 - **Large data.** `fit_PM` failed above 2**24 points because of `torch.quantile`.
 - **Bad data.** Fits raise `ValueError` on NaN, infinite or constant data.
 
+### Fits
+
+- RS and FMKL `fit_LMM` in float32: the location lost accuracy near limiting shapes, because it subtracted $1/(1+\lambda_4)$ and $1/(1+\lambda_3)$, two numbers close to 1, and divided by a small $\lambda_2$. RS on the exponential had a KS distance of about $1.3\cdot10^{-3}$, and now $6.5\cdot10^{-5}$, the same as float64.
+
 ### Structure
 
 - `_formulas.py` holds the formulas of Q and the density once, for both the NumPy class and the torch backend.
