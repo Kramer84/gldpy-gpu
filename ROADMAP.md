@@ -38,7 +38,7 @@ Legend: [x] done, [ ] todo
 - [x] `dtype` per call, no forced precision
 - [x] Validation against known distributions (`docs/validation.md`), optimizations and benchmarks (`docs/benchmarks.md`)
 - [x] First CI run (PR #1): without torch and with CPU torch, on Python 3.9 and 3.12, and the build
-- [ ] Release 0.4.0 (version set, not published)
+- [x] Release 0.4.0 (PyPI 2026-11-04, tag v0.4.0)
 
 ## Later / ideas
 - GPU versions of `fit_MM`, `fit_MPS`, `fit_starship`, `fit_curve`
