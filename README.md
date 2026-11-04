@@ -19,6 +19,7 @@ installed next to `gldpy`.
 ```bash
 pip install gldpy-gpu            # NumPy/SciPy only
 pip install "gldpy-gpu[gpu]"     # adds PyTorch for the GPU backend
+pip install "gldpy-gpu[plot]"    # adds matplotlib for plot_cdf, plot_pdf, plot_fitting
 ```
 
 Pascal GPUs (GTX 10xx, compute capability 6.1) need a specific torch, because newer wheels dropped their kernels:

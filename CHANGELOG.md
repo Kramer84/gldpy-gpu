@@ -6,7 +6,7 @@ before 1.0, a minor version may contain breaking changes, and they are marked **
 To release a new version, run `uv version --bump minor` (or `patch`, or `major`): `pyproject.toml` is the only file that
 sets the version, and `gldpy_gpu.__version__` reads it from the installed metadata.
 
-## [0.4.0] - unreleased
+## [0.4.0] - 2026-11-04
 
 ### Corrections to the original gldpy
 
@@ -67,6 +67,17 @@ defect against the real PyPI package and shows the correction, and it checks tha
 - **`fit_ML`.** `lr` depended on the data's unit, and points outside the support received an artificial density.
 - **Large data.** `fit_PM` failed above 2**24 points because of `torch.quantile`.
 - **Bad data.** Fits raise `ValueError` on NaN, infinite or constant data.
+
+### Fits
+
+- RS and FMKL `fit_LMM` in float32: the location lost accuracy near limiting shapes, because it subtracted $1/(1+\lambda_4)$ and $1/(1+\lambda_3)$, two numbers close to 1, and divided by a small $\lambda_2$. RS on the exponential had a KS distance of about $1.3\cdot10^{-3}$, and now $6.5\cdot10^{-5}$, the same as float64.
+
+### Structure
+
+- `_formulas.py` holds the formulas of Q and the density once, for both the NumPy class and the torch backend.
+- `_torch_backend.py` is split into `_torch_core.py`, `_torch_solve.py`, `_torch_stats.py` and `_torch_fit.py`. The code moved unchanged, and the helpers stay importable from `gldpy_gpu.gpu`.
+- **Breaking:** matplotlib is now the optional extra `gldpy-gpu[plot]`, and a plain `pip install gldpy-gpu` no longer brings it. Without it, `plot_cdf`, `plot_pdf` and `plot_fitting` raise `ImportError`, and a fit with `disp_fit=True` (the default) warns, skips the plot and still returns its result. `import gldpy_gpu` no longer loads matplotlib.
+- `pytest --changed` runs only the tests the edits since the last run can affect, through pytest-testmon (dev dependency, Python 3.10+).
 
 ### Performance
 

@@ -44,6 +44,10 @@ def test_cpu_gld_works_without_torch():
     assert float(out) == pytest.approx(0.0, abs=0.2)
 
 
+def test_formulas_do_not_need_torch():
+    run_without_torch("import gldpy_gpu._formulas")
+
+
 def test_star_import_works_without_torch():
     run_without_torch("from gldpy_gpu import *; assert GLD and gpu")
 

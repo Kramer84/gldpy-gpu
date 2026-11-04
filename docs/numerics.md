@@ -1,6 +1,6 @@
 # Numerical methods
 
-How `gldpy_gpu` computes each quantity, why, and what limits its accuracy. Measured results are in [validation.md](validation.md) and speed in
+How `gldpy_gpu` computes each quantity, why, and what limits its accuracy. The formulas of sections 1 and 2 exist once, in `gldpy_gpu/_formulas.py`, for both NumPy and PyTorch. Measured results are in [validation.md](validation.md) and speed in
 [benchmarks.md](benchmarks.md).
 
 ## 1. The distribution

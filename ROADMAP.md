@@ -37,7 +37,7 @@ Legend: [x] done, [ ] todo
 - [x] Correct the defects of `gldpy` 0.2 in `_gld_module.py`, with PyPI `gldpy` as evidence (`docs/upstream-bugs.md`)
 - [x] `dtype` per call, no forced precision
 - [x] Validation against known distributions (`docs/validation.md`), optimizations and benchmarks (`docs/benchmarks.md`)
-- [ ] First CI run (the workflow has not run yet), including Python 3.9
+- [x] First CI run (PR #1): without torch and with CPU torch, on Python 3.9 and 3.12, and the build
 - [ ] Release 0.4.0 (version set, not published)
 
 ## Later / ideas
@@ -48,10 +48,10 @@ Legend: [x] done, [ ] todo
 
 ## Structure
 Candidates, not done, in order of value:
-1. One math core. `_torch_backend.py` and `_gld_module.py` implement the same formulas twice, and fixes have had to be made in both. A module written against an array namespace could serve both.
-2. Split `_torch_backend.py` (about 1000 lines) into `core`, `solve`, `stats`, `fit` modules, keeping `GLD` as the deep interface.
+1. [x] One math core: `_formulas.py`, for Q, the density and the L-moment terms. Still in both classes: the CDF solvers, which differ on purpose (batched Newton and per-element Brent), and the fit equations.
+2. [x] Split `_torch_backend.py` into `_torch_core`, `_torch_solve`, `_torch_stats`, `_torch_fit`, with `GLD` as the interface. The code moved unchanged.
 3. A separate result type for fits, in place of the `disp_*`/`test_gof` flags that mix computing with printing in `_gld_module.py`.
-4. Separate plotting from computation, so that matplotlib becomes optional as well.
+4. [x] Plotting moved to `_plots.py`, and matplotlib is the optional extra `gldpy-gpu[plot]`.
 - Batched fitting (many datasets at once)
 - CI (GitHub Actions, CPU-only tests)
 
@@ -69,3 +69,4 @@ Candidates, not done, in order of value:
 - `fit_ML`: `lr` was in raw parameter units, points outside the support got a fake density. Fixed (standardized data, `correct_supp`, rejected steps).
 - `torch.quantile` raised above 2**24 elements, killing `fit_PM` on large data. Fixed.
 - Fits now raise `ValueError` on NaN, inf or constant data.
+- float32 `fit_LMM` near limiting shapes: the location subtracted two numbers near 1, then divided by a small lambda_2. Found when CI, on another torch and CPU, crossed the test limit by rounding alone. Fixed.

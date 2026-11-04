@@ -18,7 +18,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install . pytest gldpy==0.2
+      # gldpy 0.2 imports matplotlib without declaring it; without the extra, its tests would be skipped.
+      - run: pip install ".[plot]" pytest gldpy==0.2
       - run: python -c "import importlib.util as u; assert u.find_spec('torch') is None"
       - run: pytest -m "not gpu_speed"
 
@@ -34,8 +35,20 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install . pytest gldpy==0.2
+      - run: pip install ".[plot]" pytest gldpy==0.2
       - run: pytest -m "not gpu_speed"
+
+  minimal:
+    # The bare install: neither torch nor matplotlib, and everything numerical still works.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install . pytest
+      - run: python -c "import importlib.util as u; assert u.find_spec('torch') is None and u.find_spec('matplotlib') is None"
+      - run: pytest tests/test_optional_matplotlib.py tests/test_optional_torch.py
 
   build:
     runs-on: ubuntu-latest

@@ -1,8 +1,13 @@
 """GLD module."""
 
+import functools
+import importlib
+import warnings
+
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import integrate, optimize, special, stats
+
+from ._formulas import NUMPY
 
 # y = exp(-700) ~ 1e-304, just above where float64 underflows.
 _LOGIT_BOUND = 700.0
@@ -10,73 +15,29 @@ _LOGIT_BOUND = 700.0
 _MOMENT_SERIES_MIN_LAMBDA = 0.02
 
 
-def _pow_minus_one(log_u, lam):
-    """u**lam - 1 from log(u). RS uses y**a - s**b = (y**a - 1) - (s**b - 1), which avoids subtracting two numbers near 1."""
-    return 0.0 if lam == 0 else np.expm1(lam * log_u)
+def _quiet(function):
+    """Run a shared formula without NumPy's warnings: infinities at y = 0 and y = 1 are expected there."""
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        with np.errstate(all="ignore"):
+            return function(*args, **kwargs)
+    return wrapper
 
 
-def _box_cox(log_u, lam):
-    """(u**lam - 1) / lam from log(u), without cancellation as lam -> 0."""
-    return log_u if lam == 0 else np.expm1(lam * log_u) / lam
+def _plots():
+    """The plotting module, loaded on first use: matplotlib is optional, and slow to import."""
+    try:
+        return importlib.import_module("._plots", package=__package__)
+    except ImportError as error:
+        raise ImportError(f"Plots need matplotlib ({error}): pip install gldpy-gpu[plot].") from error
 
 
-def _quantile_from_logs(log_y, log_s, param, param_type):
-    """Q from log(y) and log(s), where s = 1 - y, so neither tail ever forms `1 - y`."""
-    p1, p2, p3, p4 = param
-    with np.errstate(over="ignore"):
-        if param_type == "RS":
-            return p1 + (_pow_minus_one(log_y, p3) - _pow_minus_one(log_s, p4)) / p2
-        if param_type == "FMKL":
-            return p1 + (_box_cox(log_y, p3) - _box_cox(log_s, p4)) / p2
-        # delta = 0 or 1 removes a term entirely, also where its box-cox value is infinite.
-        lower = 0.0 if p3 == 1 else (1.0 - p3) * _box_cox(log_y, p4)
-        upper = 0.0 if p3 == 0 else p3 * _box_cox(log_s, p4)
-        return p1 + p2 * (lower - upper)
-
-
-def _log_density_from_logs(log_y, log_s, param, param_type):
-    """log f(y) = -log Q'(y), factoring out the larger term of Q' so nothing overflows."""
-    p1, p2, p3, p4 = param
-    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-        if param_type == "VSL":
-            c3, c4, e3, e4, log_scale = 1.0 - p3, p3, p4 - 1.0, p4 - 1.0, -np.log(p2)
-        elif param_type == "FMKL":
-            c3, c4, e3, e4, log_scale = 1.0, 1.0, p3 - 1.0, p4 - 1.0, np.log(p2)
-        else:
-            c3, c4, e3, e4, log_scale = p3, p4, p3 - 1.0, p4 - 1.0, np.log(abs(p2))
-        a = -np.inf if c3 == 0 else np.log(abs(c3)) + (0.0 if e3 == 0 else e3 * log_y)
-        b = -np.inf if c4 == 0 else np.log(abs(c4)) + (0.0 if e4 == 0 else e4 * log_s)
-        m = np.maximum(a, b)
-        ok = np.isfinite(m)  # at y = 0 or 1 a term is infinite and the larger one alone decides
-        a, b, m0 = np.where(ok, a, 0.0), np.where(ok, b, 0.0), np.where(ok, m, 0.0)
-        inner = np.log(np.abs(np.sign(c3) * np.exp(a - m0) + np.sign(c4) * np.exp(b - m0)))
-        return log_scale - m - np.where(ok, inner, 0.0)
-
-
-def _density_from_y(y, param, param_type):
-    """f(y) = scale / |c3 y**e3 + c4 (1 - y)**e4|. A term with a zero coefficient is left out, also at y = 0 or 1."""
-    p1, p2, p3, p4 = param
-    if param_type == "VSL":
-        c3, c4, e3, e4, scale = 1.0 - p3, p3, p4 - 1.0, p4 - 1.0, 1.0 / p2
-    elif param_type == "FMKL":
-        c3, c4, e3, e4, scale = 1.0, 1.0, p3 - 1.0, p4 - 1.0, p2
-    else:
-        c3, c4, e3, e4, scale = p3, p4, p3 - 1.0, p4 - 1.0, abs(p2)
-    with np.errstate(divide="ignore", over="ignore"):
-        term3 = 0.0 if c3 == 0 else c3 * y**e3
-        term4 = 0.0 if c4 == 0 else c4 * (1.0 - y) ** e4
-        return scale / np.abs(term3 + term4)
-
-
-def _fmkl_lm_terms(l):
-    """FMKL L-moment terms in closed form: (-1/(1+l) + 2/(2+l)) / l = 1/((1+l)(2+l)), and so on.
-
-    The 1/l of the textbook sums cancels, so these stay finite and accurate at l = 0.
-    """
-    g2 = 1 / ((1 + l) * (2 + l))
-    g3 = (l - 1) * g2 / (3 + l)
-    g4 = (l - 1) * (l - 2) * g2 / ((3 + l) * (4 + l))
-    return g2, g3, g4
+# The arithmetic of Q and the density is shared with the torch backend, in _formulas.py.
+_box_cox = NUMPY.box_cox  # for constants inside (0, 1), in the percentile equations: nothing to silence
+_quantile_from_logs = _quiet(NUMPY.quantile_from_logs)
+_log_density_from_logs = _quiet(NUMPY.log_density_from_logs)
+_density_from_y = _quiet(NUMPY.density_from_y)
+_fmkl_lm_terms = NUMPY.fmkl_lm_terms
 
 
 class GLD:
@@ -309,16 +270,17 @@ class GLD:
 
         def f(t_i, x_i):
             """Auxiliary function for root finding."""
-            return _quantile_from_logs(-np.logaddexp(0.0, -t_i), -np.logaddexp(0.0, t_i), param, self.param_type) - x_i
+            return NUMPY.quantile_from_logs(-np.logaddexp(0.0, -t_i), -np.logaddexp(0.0, t_i), param, self.param_type) - x_i
 
-        for i in np.ndindex(x.shape):
-            if np.isnan(t[i]) and not np.isnan(x[i]):
-                if f(-_LOGIT_BOUND, x[i]) >= 0:
-                    t[i] = -_LOGIT_BOUND
-                elif f(_LOGIT_BOUND, x[i]) <= 0:
-                    t[i] = _LOGIT_BOUND
-                else:
-                    t[i] = optimize.brentq(f, -_LOGIT_BOUND, _LOGIT_BOUND, args=(x[i],), xtol=xtol, maxiter=500)
+        with np.errstate(all='ignore'):  # once around the loop: per evaluation it costs about 15%
+            for i in np.ndindex(x.shape):
+                if np.isnan(t[i]) and not np.isnan(x[i]):
+                    if f(-_LOGIT_BOUND, x[i]) >= 0:
+                        t[i] = -_LOGIT_BOUND
+                    elif f(_LOGIT_BOUND, x[i]) <= 0:
+                        t[i] = _LOGIT_BOUND
+                    else:
+                        t[i] = optimize.brentq(f, -_LOGIT_BOUND, _LOGIT_BOUND, args=(x[i],), xtol=xtol, maxiter=500)
         return t
 
     def CDF_num(self, x, param, xtol = 1e-08):
@@ -548,6 +510,15 @@ class GLD:
         chi2 = stats.chisquare(np.histogram(np.clip(data,a,b),self.Q(np.linspace(0, 1, bins_gof + 1),param))[0],[len(data)/bins_gof]*bins_gof )
         return ks, chi2
 
+    def _plot_fit_if_possible(self, data, param, bins):
+        """The plot at the end of a fit, which is on by default: without matplotlib, the fit still returns its result."""
+        try:
+            plots = _plots()
+        except ImportError as error:
+            warnings.warn(f"{error} Skipping the plot.", UserWarning, stacklevel=3)
+        else:
+            plots.plot_fitting(self, data, param, bins)
+
     def plot_cdf(self, param_list, data = None, ymin = 0.01, ymax = 0.99, n_points = 100, names = None, color_emp = 'lightgrey', colors = None):
         """Plot cumulative distribution functions of GLD.
         
@@ -575,27 +546,8 @@ class GLD:
         plot_fitting(self, data, param, bins=None)
         
         """
-        param_list = np.array(param_list)        
-        if param_list.ndim==1:
-            param_list = param_list.reshape(1,-1)
-        if names is None:
-            names = [str(x) for x in param_list]
-        if colors is None:
-            colors = [None]*len(param_list)
-        plt.figure()
-        plt.grid()
-        if  not (data is None):
-            data = data.ravel()
-            plt.plot(np.sort(data), np.arange(len(data))/len(data),color = color_emp,lw = 2)
-            names = np.hstack(['empirical data', names ])
-        y = np.linspace(ymin,ymax,n_points)
-        for i in range(param_list.shape[0]):
-            param = param_list[i]
-            plt.plot(self.Q(y,param), y, color = colors[i])
-        plt.ylim(ymin = 0)
-        plt.legend(names,bbox_to_anchor=(1.0,  1.0 ))
-        plt.title('CDF')
-        
+        _plots().plot_cdf(self, param_list, data, ymin, ymax, n_points, names, color_emp, colors)
+
     def plot_pdf(self, param_list, data = None, ymin = 0.01, ymax = 0.99, n_points = 100,  bins = None, names = None, color_emp = 'lightgrey', colors = None):
         """Plot probability density functions of GLD.
         
@@ -624,30 +576,8 @@ class GLD:
             Line colors of PDFs. Length of the list should be equal to the length of param_list.
             
         """
-        param_list = np.array(param_list)
-        if param_list.ndim==1:
-            param_list = param_list.reshape(1,-1)
-        if names is None:
-            names = [str(x) for x in param_list]
-        plt.figure()
-        plt.grid()
-        pdf_max = 0
-        if not data is None:
-            data = data.ravel()
-            p = plt.hist(data, bins = bins, color = color_emp, density = True)
-            pdf_max = np.max(p[0])
-        if colors is None:
-            colors = [None]*len(param_list)
-        y = np.linspace(ymin,ymax,n_points)
-        
-        for i in range(param_list.shape[0]):
-            param = param_list[i]
-            plt.plot(self.Q(y,param), self.PDF_Q(y,param),color = colors[i])
-            pdf_max = np.max([pdf_max,np.max(self.PDF_Q(y,param))])
-        plt.ylim(ymin = 0,ymax = pdf_max * 1.05)
-        plt.legend(names,bbox_to_anchor=(1.0,  1.0 ))
-        plt.title('PDF')                
-        
+        _plots().plot_pdf(self, param_list, data, ymin, ymax, n_points, bins, names, color_emp, colors)
+
     def plot_fitting(self,data,param, bins = None):
         """Construct plots for comparing fitted GLD with data.
         
@@ -665,26 +595,8 @@ class GLD:
             Number of bins for histogram.
             
         """
-        data = data.ravel()
-        fig,ax = plt.subplots(1,3,figsize = (15,3))
-        ax[0].hist(data,bins = bins,density = True,color = 'skyblue')
-        y = np.linspace(0.001,0.999,100)
-        ax[0].plot(self.Q(y,param),self.PDF_Q(y,param),lw = 2,color = 'r')
-        ax[0].set_title('PDF')
-        ax[0].grid()
-        ax[1].plot(np.sort(data), np.arange(len(data))/len(data))
-        ax[1].plot(self.Q(y,param), y)
-        ax[1].grid()
-        ax[1].set_title('CDF')
-        x = np.sort(data)
-        y = (np.arange(len(data))+0.5)/len(data)        
-        ax[2].plot(self.Q(y,param), x,'bo',ms = 3)
-        m1 = np.min([x,self.Q(y,param)])
-        m2 = np.max([x,self.Q(y,param)])
-        ax[2].plot([m1,m2], [m1,m2],'r')
-        ax[2].grid()
-        ax[2].set_title('Q-Q-plot') 
-    
+        _plots().plot_fitting(self, data, param, bins)
+
     def __sum_Ez(self,k,p3,p4):
         """Auxiliary function for moments calculation."""        
         s = 0
@@ -981,7 +893,7 @@ class GLD:
                     print('Goodness-of-Fit')
                     print(ks)
                     print(chi2)
-                self.plot_fitting(data,param,bins = bins_hist)
+                self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
 
      
@@ -1134,7 +1046,7 @@ class GLD:
                     print('Goodness-of-Fit')
                     print(ks)
                     print(chi2)
-                self.plot_fitting(data,param,bins = bins_hist)
+                self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
   
     def fit_LMM(self,data, initial_guess = None,  xtol=0.0001, maxiter=None, maxfun=None , disp_optimizer=True,   disp_fit = True, bins_hist = None, test_gof = True, bins_gof = 8):
@@ -1306,7 +1218,7 @@ class GLD:
                     print('Goodness-of-Fit')
                     print(ks)
                     print(chi2)
-                self.plot_fitting(data,param,bins = bins_hist)
+                self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
     
     def grid_search(self, data, fun_min, grid_min = -3, grid_max = 3, n_grid = 10):
@@ -1486,7 +1398,7 @@ class GLD:
                 print('Goodness-of-Fit')
                 print(ks)
                 print(chi2)
-            self.plot_fitting(data,param,bins = bins_hist)
+            self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
         
     def fit_ML(self,data, initial_guess = None, method = 'grid', u = 0.1, grid_min = -3, grid_max = 3, n_grid = 10, xtol=0.0001, maxiter=None, maxfun=None , disp_optimizer=True,   disp_fit = True, bins_hist = None, test_gof = True, bins_gof = 8):
@@ -1588,7 +1500,7 @@ class GLD:
                 print('Goodness-of-Fit')
                 print(ks)
                 print(chi2)
-            self.plot_fitting(data,param,bins = bins_hist)
+            self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
     
     
@@ -1692,7 +1604,7 @@ class GLD:
                 print('Goodness-of-Fit')
                 print(ks)
                 print(chi2)
-            self.plot_fitting(data,param,bins = bins_hist)
+            self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
     
     
@@ -1819,19 +1731,10 @@ class GLD:
             print('C: ', c)
             if shift:
                 print('shift: ', shift_val)
-            fig, ax = plt.subplots(1,2,figsize = (12,3.5))
-            ax[0].grid()
-            ax[0].hist(data,color = 'skyblue',density = True, bins = bins_hist)
-            p = np.linspace(0.01,0.99,100)
-            ax[0].plot(self.Q(p,param1), self.PDF_Q(p,param1),'r')
-            ax[0].set_title('Simulation phase')
-            y_fit = self.PDF_num(x,param)*c + shift_val
-            y = y + shift_val
-            delta = np.max([0.05*np.abs(np.mean(y)), 10**(-5)])
-            ax[1].grid()
-            ax[1].plot(x,y,'b')      
-            ax[1].plot(x,y_fit,'r')
-            ax[1].set_ylim(np.min([y,y_fit]) - delta,np.max([y,y_fit])+delta)
-            ax[1].legend(['data', 'GLD'])
-            ax[1].set_title('Result of curve fitting')
+            try:
+                plots = _plots()
+            except ImportError as error:
+                warnings.warn(f"{error} Skipping the plot.", UserWarning, stacklevel=2)
+            else:
+                plots.plot_curve_fit(self, data, param1, param, x, y, c, shift_val, bins_hist)
         return param, c, shift_val

@@ -6,8 +6,10 @@ adding a PyTorch/CUDA backend. PyPI name: **gldpy-gpu**; import name is **`gldpy
 
 ## Layout
 - `gldpy_gpu/_gld_module.py` — NumPy/SciPy `GLD`, corrected from `gldpy` 0.2 (see `docs/upstream-bugs.md`).
+- `gldpy_gpu/_plots.py` — plots of the NumPy `GLD`, loaded on first use. The only module that imports matplotlib, an optional extra (`gldpy-gpu[plot]`).
 - `gldpy_gpu/gpu.py` — picks the backend, loaded lazily via `gldpy_gpu.gpu` (PEP 562 in `__init__.py`).
-- `gldpy_gpu/_torch_backend.py` — torch `GLD` class + helpers.
+- `gldpy_gpu/_formulas.py` — the formulas of Q and the density, once, for NumPy and torch. Change the math here, not in either class. Must not import torch.
+- `gldpy_gpu/_torch_backend.py` — torch `GLD` class, device selection, dtype rule. Numerics in `_torch_core.py` (validity, Q, density, sampling), `_torch_solve.py` (CDF), `_torch_stats.py` (L-moments, percentiles), `_torch_fit.py` (fit solvers).
 - `gldpy_gpu/_numpy_fallback.py` — used when torch is missing: warns, same calls, runs on NumPy.
 - `tests/` — pytest. GPU-vs-CPU parity tests; device fixture runs on `cpu` and, if present, `cuda`.
 - `benchmarks/` — CPU-vs-GPU speed scripts (`bench_gpu.py`), results in `benchmarks/results/` (gitignored).
@@ -22,6 +24,7 @@ Precision is the caller's: no code path may convert to another dtype (`tests/tes
 ## Commands (uv)
 - `uv sync` — create `.venv`, install deps + dev group, which includes torch (from the cu126 index, see below).
 - `uv run pytest` — fast suite (speed and slow tests excluded); `uv run pytest -m "not gpu_speed"` adds the slow ones.
+- `uv run pytest --changed` — only the tests the edits since the last run can affect (pytest-testmon, Python 3.10+; data in `.testmondata`, gitignored), plus all of `test_optional_torch.py` and `test_optional_matplotlib.py`, whose subprocess code testmon cannot see. First run is a full run. A quick check while working: it does not replace the full suite before a commit, because testmon follows Python code only, not `pyproject.toml` or other data files.
 - `uv run pytest -m gpu_speed -s` — GPU-vs-CPU speed checks (needs CUDA).
 - `uv run python benchmarks/bench_gpu.py`, `benchmarks/compare_analytic.py`, then `benchmarks/make_tables.py` — regenerate the measured tables in `docs/`.
 - `uv version --bump minor` (or `patch`, `major`) — the only way to change the version; add a `CHANGELOG.md` section.
@@ -47,4 +50,4 @@ Verify with `torch.cuda.get_arch_list()` containing `sm_61`.
 - Generated, do not edit: `uv.lock`, `dist/`, `.venv/`, `benchmarks/results/`.
 - Remote: `origin` = git@github.com:Kramer84/gldpy-gpu.git. No secrets/`.env` in this repo.
 
-Last validated against the real files: 2026-11-04 (`uv run pytest -m "not gpu_speed"`: 1313 passed, 6 skipped; `-m gpu_speed`: 2 passed).
+Last validated against the real files: 2026-11-04 (`uv run pytest -m "not gpu_speed"`: 1393 passed, 6 skipped; `-m gpu_speed`: 2 passed).
