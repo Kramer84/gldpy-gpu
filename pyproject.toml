@@ -40,6 +40,7 @@ dev = [
     "twine",
     "torch>=2.0",
     "gldpy==0.2",
+    "pytest-testmon ; python_full_version >= '3.10'",
 ]
 
 [tool.hatch.build.targets.wheel]

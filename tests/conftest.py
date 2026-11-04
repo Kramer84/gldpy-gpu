@@ -18,6 +18,39 @@ PARAMS = {
 }
 
 
+# testmon measures this process only, so it cannot see what these subprocess tests depend on.
+ALWAYS_WITH_CHANGED = "test_optional_torch.py"
+
+
+def pytest_addoption(parser):
+    parser.addoption("--changed", action="store_true", help="run only the tests the edits since the last run can affect (pytest-testmon)")
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    if not config.getoption("--changed"):
+        return
+    if not config.pluginmanager.hasplugin("pytest-testmon"):
+        raise pytest.UsageError("--changed needs pytest-testmon (Python 3.10+, in the dev group: `uv sync`)")
+    # forceselect, because testmon stops selecting when it sees -m, which addopts always passes.
+    config.option.testmon = config.option.testmon_forceselect = True
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_ignore_collect(collection_path, config):
+    if config.getoption("--changed") and collection_path.name == ALWAYS_WITH_CHANGED:
+        return False  # testmon would otherwise skip the file whole
+    return None
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_collection_modifyitems(config, items):
+    always = [item for item in items if item.path.name == ALWAYS_WITH_CHANGED] if config.getoption("--changed") else []
+    result = yield
+    items.extend(item for item in always if item not in items)
+    return result
+
+
 def _devices():
     devs = ["cpu"]
     if HAS_TORCH and torch.cuda.is_available():

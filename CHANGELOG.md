@@ -71,6 +71,7 @@ defect against the real PyPI package and shows the correction, and it checks tha
 ### Structure
 
 - `_formulas.py` holds the formulas of Q and the density once, for both the NumPy class and the torch backend.
+- `pytest --changed` runs only the tests the edits since the last run can affect, through pytest-testmon (dev dependency, Python 3.10+).
 
 ### Performance
 

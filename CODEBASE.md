@@ -42,5 +42,6 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 - `test_gpu_fast_paths.py` optimized paths against the general ones, solver iteration budgets.
 - `test_gpu_fit_quality.py` fits against the CPU oracle, multiple roots, scale invariance, bad data, support.
 - `test_optional_torch.py` torch-blocked subprocess runs and the NumPy fallback; runs without torch (conftest then skips `test_gpu_*`).
+- `test_changed_selection.py` `pytest --changed` on a small throwaway project; skipped without pytest-testmon. The option itself is in `conftest.py`.
 - `test_gpu_device.py` device selection/fallback; `test_lazy_import.py` PEP 562 loader; `test_packaging.py` version equality with pyproject.
 - `test_speed.py` marked `gpu_speed`, and the longest tests marked `slow`: both deselected by default.

@@ -23,6 +23,7 @@ Precision is the caller's: no code path may convert to another dtype (`tests/tes
 ## Commands (uv)
 - `uv sync` — create `.venv`, install deps + dev group, which includes torch (from the cu126 index, see below).
 - `uv run pytest` — fast suite (speed and slow tests excluded); `uv run pytest -m "not gpu_speed"` adds the slow ones.
+- `uv run pytest --changed` — only the tests the edits since the last run can affect (pytest-testmon, Python 3.10+; data in `.testmondata`, gitignored), plus all of `test_optional_torch.py`, whose subprocess code testmon cannot see. First run is a full run. A quick check while working: it does not replace the full suite before a commit, because testmon follows Python code only, not `pyproject.toml` or other data files.
 - `uv run pytest -m gpu_speed -s` — GPU-vs-CPU speed checks (needs CUDA).
 - `uv run python benchmarks/bench_gpu.py`, `benchmarks/compare_analytic.py`, then `benchmarks/make_tables.py` — regenerate the measured tables in `docs/`.
 - `uv version --bump minor` (or `patch`, `major`) — the only way to change the version; add a `CHANGELOG.md` section.

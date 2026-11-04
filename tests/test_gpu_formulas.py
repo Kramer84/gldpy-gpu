@@ -1,7 +1,4 @@
 """The shared formulas: the NumPy and torch adapters must give the same numbers from the same code."""
-import subprocess
-import sys
-
 import numpy as np
 import pytest
 import torch
@@ -90,11 +87,6 @@ def test_unknown_type_is_rejected():
         NUMPY.quantile_from_logs(np.log(0.5), np.log(0.5), np.array([0.0, 1.0, 0.2, 0.3]), "nope")
     with pytest.raises(ValueError):
         NUMPY.log_density_from_logs(np.log(0.5), np.log(0.5), np.array([0.0, 1.0, 0.2, 0.3]), "nope")
-
-
-def test_formulas_do_not_import_torch():
-    code = "import sys; import gldpy_gpu._formulas; assert 'torch' not in sys.modules"
-    subprocess.run([sys.executable, "-c", code], check=True)
 
 
 def test_each_formula_exists_once():
