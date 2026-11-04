@@ -6,6 +6,7 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 |---|---|---|
 | `gldpy_gpu/__init__.py` | Exports CPU `GLD`, `__version__`; lazy-loads `gpu` (PEP 562) | `gldpy_gpu.GLD`, `gldpy_gpu.gpu` |
 | `gldpy_gpu/_gld_module.py` | Corrected NumPy/SciPy `GLD`, derived from `gldpy` 0.2; corrections are listed in `docs/upstream-bugs.md` | `GLD` |
+| `gldpy_gpu/_plots.py` | Plots of the NumPy `GLD`, loaded on first use by `_gld_module._plots()`. The only module that imports matplotlib. Without it, `plot_*` raise `ImportError` and a fit warns and returns its result | `plot_cdf`, `plot_pdf`, `plot_fitting`, `plot_curve_fit` |
 | `gldpy_gpu/gpu.py` | Backend selector: torch if importable, else NumPy fallback. `BACKEND`; forwards other names to the backend | `gpu.GLD` |
 | `gldpy_gpu/_formulas.py` | The formulas of Q and the density, once, for both libraries: `Formulas(xp, ...)` with the adapters `NUMPY` here and `FORMULAS` in the torch backend. Must not import torch | `Formulas` |
 | `gldpy_gpu/_torch_backend.py` | Torch `GLD` class, device selection, dtype rule; re-exports the helpers of the modules below, for `gpu.py` | `GLD` |
@@ -20,7 +21,7 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 | `benchmarks/make_tables.py` | Writes the result tables into `docs/validation.md` and `docs/benchmarks.md` | `main()` |
 | `docs/` | `upstream-bugs.md`, `numerics.md`, `validation.md`, `benchmarks.md` | |
 | `CHANGELOG.md` | All changes | |
-| `.github/workflows/ci.yml` | Tests without torch and with CPU torch, and the build | |
+| `.github/workflows/ci.yml` | Tests without torch, with CPU torch, on the bare install, and the build | |
 | `pyproject.toml` | hatchling build, deps, pytest config, uv torch cu126 source (dev only) | |
 | `uv.lock` | Lockfile (generated, do not edit) | |
 | `dist/` | Build output (generated, gitignored) | |
@@ -46,5 +47,6 @@ Imports go one way: `_formulas` <- `_torch_core` <- `_torch_solve`, `_torch_fit`
 - `test_gpu_fit_quality.py` fits against the CPU oracle, multiple roots, scale invariance, bad data, support.
 - `test_optional_torch.py` torch-blocked subprocess runs and the NumPy fallback; runs without torch (conftest then skips `test_gpu_*`).
 - `test_changed_selection.py` `pytest --changed` on a small throwaway project; skipped without pytest-testmon. The option itself is in `conftest.py`.
+- `test_optional_matplotlib.py` matplotlib-blocked subprocess runs, and what the plots draw.
 - `test_gpu_device.py` device selection/fallback; `test_lazy_import.py` PEP 562 loader; `test_packaging.py` version equality with pyproject.
 - `test_speed.py` marked `gpu_speed`, and the longest tests marked `slow`: both deselected by default.

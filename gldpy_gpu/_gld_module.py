@@ -1,9 +1,10 @@
 """GLD module."""
 
 import functools
+import importlib
+import warnings
 
 import numpy as np
-import matplotlib.pyplot as plt
 from scipy import integrate, optimize, special, stats
 
 from ._formulas import NUMPY
@@ -21,6 +22,14 @@ def _quiet(function):
         with np.errstate(all="ignore"):
             return function(*args, **kwargs)
     return wrapper
+
+
+def _plots():
+    """The plotting module, loaded on first use: matplotlib is optional, and slow to import."""
+    try:
+        return importlib.import_module("._plots", package=__package__)
+    except ImportError as error:
+        raise ImportError(f"Plots need matplotlib ({error}): pip install gldpy-gpu[plot].") from error
 
 
 # The arithmetic of Q and the density is shared with the torch backend, in _formulas.py.
@@ -501,6 +510,15 @@ class GLD:
         chi2 = stats.chisquare(np.histogram(np.clip(data,a,b),self.Q(np.linspace(0, 1, bins_gof + 1),param))[0],[len(data)/bins_gof]*bins_gof )
         return ks, chi2
 
+    def _plot_fit_if_possible(self, data, param, bins):
+        """The plot at the end of a fit, which is on by default: without matplotlib, the fit still returns its result."""
+        try:
+            plots = _plots()
+        except ImportError as error:
+            warnings.warn(f"{error} Skipping the plot.", UserWarning, stacklevel=3)
+        else:
+            plots.plot_fitting(self, data, param, bins)
+
     def plot_cdf(self, param_list, data = None, ymin = 0.01, ymax = 0.99, n_points = 100, names = None, color_emp = 'lightgrey', colors = None):
         """Plot cumulative distribution functions of GLD.
         
@@ -528,27 +546,8 @@ class GLD:
         plot_fitting(self, data, param, bins=None)
         
         """
-        param_list = np.array(param_list)        
-        if param_list.ndim==1:
-            param_list = param_list.reshape(1,-1)
-        if names is None:
-            names = [str(x) for x in param_list]
-        if colors is None:
-            colors = [None]*len(param_list)
-        plt.figure()
-        plt.grid()
-        if  not (data is None):
-            data = data.ravel()
-            plt.plot(np.sort(data), np.arange(len(data))/len(data),color = color_emp,lw = 2)
-            names = np.hstack(['empirical data', names ])
-        y = np.linspace(ymin,ymax,n_points)
-        for i in range(param_list.shape[0]):
-            param = param_list[i]
-            plt.plot(self.Q(y,param), y, color = colors[i])
-        plt.ylim(ymin = 0)
-        plt.legend(names,bbox_to_anchor=(1.0,  1.0 ))
-        plt.title('CDF')
-        
+        _plots().plot_cdf(self, param_list, data, ymin, ymax, n_points, names, color_emp, colors)
+
     def plot_pdf(self, param_list, data = None, ymin = 0.01, ymax = 0.99, n_points = 100,  bins = None, names = None, color_emp = 'lightgrey', colors = None):
         """Plot probability density functions of GLD.
         
@@ -577,30 +576,8 @@ class GLD:
             Line colors of PDFs. Length of the list should be equal to the length of param_list.
             
         """
-        param_list = np.array(param_list)
-        if param_list.ndim==1:
-            param_list = param_list.reshape(1,-1)
-        if names is None:
-            names = [str(x) for x in param_list]
-        plt.figure()
-        plt.grid()
-        pdf_max = 0
-        if not data is None:
-            data = data.ravel()
-            p = plt.hist(data, bins = bins, color = color_emp, density = True)
-            pdf_max = np.max(p[0])
-        if colors is None:
-            colors = [None]*len(param_list)
-        y = np.linspace(ymin,ymax,n_points)
-        
-        for i in range(param_list.shape[0]):
-            param = param_list[i]
-            plt.plot(self.Q(y,param), self.PDF_Q(y,param),color = colors[i])
-            pdf_max = np.max([pdf_max,np.max(self.PDF_Q(y,param))])
-        plt.ylim(ymin = 0,ymax = pdf_max * 1.05)
-        plt.legend(names,bbox_to_anchor=(1.0,  1.0 ))
-        plt.title('PDF')                
-        
+        _plots().plot_pdf(self, param_list, data, ymin, ymax, n_points, bins, names, color_emp, colors)
+
     def plot_fitting(self,data,param, bins = None):
         """Construct plots for comparing fitted GLD with data.
         
@@ -618,26 +595,8 @@ class GLD:
             Number of bins for histogram.
             
         """
-        data = data.ravel()
-        fig,ax = plt.subplots(1,3,figsize = (15,3))
-        ax[0].hist(data,bins = bins,density = True,color = 'skyblue')
-        y = np.linspace(0.001,0.999,100)
-        ax[0].plot(self.Q(y,param),self.PDF_Q(y,param),lw = 2,color = 'r')
-        ax[0].set_title('PDF')
-        ax[0].grid()
-        ax[1].plot(np.sort(data), np.arange(len(data))/len(data))
-        ax[1].plot(self.Q(y,param), y)
-        ax[1].grid()
-        ax[1].set_title('CDF')
-        x = np.sort(data)
-        y = (np.arange(len(data))+0.5)/len(data)        
-        ax[2].plot(self.Q(y,param), x,'bo',ms = 3)
-        m1 = np.min([x,self.Q(y,param)])
-        m2 = np.max([x,self.Q(y,param)])
-        ax[2].plot([m1,m2], [m1,m2],'r')
-        ax[2].grid()
-        ax[2].set_title('Q-Q-plot') 
-    
+        _plots().plot_fitting(self, data, param, bins)
+
     def __sum_Ez(self,k,p3,p4):
         """Auxiliary function for moments calculation."""        
         s = 0
@@ -934,7 +893,7 @@ class GLD:
                     print('Goodness-of-Fit')
                     print(ks)
                     print(chi2)
-                self.plot_fitting(data,param,bins = bins_hist)
+                self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
 
      
@@ -1087,7 +1046,7 @@ class GLD:
                     print('Goodness-of-Fit')
                     print(ks)
                     print(chi2)
-                self.plot_fitting(data,param,bins = bins_hist)
+                self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
   
     def fit_LMM(self,data, initial_guess = None,  xtol=0.0001, maxiter=None, maxfun=None , disp_optimizer=True,   disp_fit = True, bins_hist = None, test_gof = True, bins_gof = 8):
@@ -1259,7 +1218,7 @@ class GLD:
                     print('Goodness-of-Fit')
                     print(ks)
                     print(chi2)
-                self.plot_fitting(data,param,bins = bins_hist)
+                self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
     
     def grid_search(self, data, fun_min, grid_min = -3, grid_max = 3, n_grid = 10):
@@ -1439,7 +1398,7 @@ class GLD:
                 print('Goodness-of-Fit')
                 print(ks)
                 print(chi2)
-            self.plot_fitting(data,param,bins = bins_hist)
+            self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
         
     def fit_ML(self,data, initial_guess = None, method = 'grid', u = 0.1, grid_min = -3, grid_max = 3, n_grid = 10, xtol=0.0001, maxiter=None, maxfun=None , disp_optimizer=True,   disp_fit = True, bins_hist = None, test_gof = True, bins_gof = 8):
@@ -1541,7 +1500,7 @@ class GLD:
                 print('Goodness-of-Fit')
                 print(ks)
                 print(chi2)
-            self.plot_fitting(data,param,bins = bins_hist)
+            self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
     
     
@@ -1645,7 +1604,7 @@ class GLD:
                 print('Goodness-of-Fit')
                 print(ks)
                 print(chi2)
-            self.plot_fitting(data,param,bins = bins_hist)
+            self._plot_fit_if_possible(data, param, bins_hist)
         return np.array(param)
     
     
@@ -1772,19 +1731,10 @@ class GLD:
             print('C: ', c)
             if shift:
                 print('shift: ', shift_val)
-            fig, ax = plt.subplots(1,2,figsize = (12,3.5))
-            ax[0].grid()
-            ax[0].hist(data,color = 'skyblue',density = True, bins = bins_hist)
-            p = np.linspace(0.01,0.99,100)
-            ax[0].plot(self.Q(p,param1), self.PDF_Q(p,param1),'r')
-            ax[0].set_title('Simulation phase')
-            y_fit = self.PDF_num(x,param)*c + shift_val
-            y = y + shift_val
-            delta = np.max([0.05*np.abs(np.mean(y)), 10**(-5)])
-            ax[1].grid()
-            ax[1].plot(x,y,'b')      
-            ax[1].plot(x,y_fit,'r')
-            ax[1].set_ylim(np.min([y,y_fit]) - delta,np.max([y,y_fit])+delta)
-            ax[1].legend(['data', 'GLD'])
-            ax[1].set_title('Result of curve fitting')
+            try:
+                plots = _plots()
+            except ImportError as error:
+                warnings.warn(f"{error} Skipping the plot.", UserWarning, stacklevel=2)
+            else:
+                plots.plot_curve_fit(self, data, param1, param, x, y, c, shift_val, bins_hist)
         return param, c, shift_val

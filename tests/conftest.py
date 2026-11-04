@@ -19,7 +19,7 @@ PARAMS = {
 
 
 # testmon measures this process only, so it cannot see what these subprocess tests depend on.
-ALWAYS_WITH_CHANGED = "test_optional_torch.py"
+ALWAYS_WITH_CHANGED = ("test_optional_torch.py", "test_optional_matplotlib.py")
 
 
 def pytest_addoption(parser):
@@ -38,14 +38,14 @@ def pytest_configure(config):
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_ignore_collect(collection_path, config):
-    if config.getoption("--changed") and collection_path.name == ALWAYS_WITH_CHANGED:
+    if config.getoption("--changed") and collection_path.name in ALWAYS_WITH_CHANGED:
         return False  # testmon would otherwise skip the file whole
     return None
 
 
 @pytest.hookimpl(wrapper=True)
 def pytest_collection_modifyitems(config, items):
-    always = [item for item in items if item.path.name == ALWAYS_WITH_CHANGED] if config.getoption("--changed") else []
+    always = [item for item in items if item.path.name in ALWAYS_WITH_CHANGED] if config.getoption("--changed") else []
     result = yield
     items.extend(item for item in always if item not in items)
     return result
