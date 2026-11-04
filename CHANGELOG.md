@@ -6,7 +6,7 @@ before 1.0, a minor version may contain breaking changes, and they are marked **
 To release a new version, run `uv version --bump minor` (or `patch`, or `major`): `pyproject.toml` is the only file that
 sets the version, and `gldpy_gpu.__version__` reads it from the installed metadata.
 
-## [0.4.0] - unreleased
+## [0.4.0] - 2026-11-04
 
 ### Corrections to the original gldpy
 
