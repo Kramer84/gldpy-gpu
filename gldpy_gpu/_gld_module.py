@@ -1,8 +1,12 @@
 """GLD module."""
 
+import functools
+
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import integrate, optimize, special, stats
+
+from ._formulas import NUMPY
 
 # y = exp(-700) ~ 1e-304, just above where float64 underflows.
 _LOGIT_BOUND = 700.0
@@ -10,73 +14,21 @@ _LOGIT_BOUND = 700.0
 _MOMENT_SERIES_MIN_LAMBDA = 0.02
 
 
-def _pow_minus_one(log_u, lam):
-    """u**lam - 1 from log(u). RS uses y**a - s**b = (y**a - 1) - (s**b - 1), which avoids subtracting two numbers near 1."""
-    return 0.0 if lam == 0 else np.expm1(lam * log_u)
+def _quiet(function):
+    """Run a shared formula without NumPy's warnings: infinities at y = 0 and y = 1 are expected there."""
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        with np.errstate(all="ignore"):
+            return function(*args, **kwargs)
+    return wrapper
 
 
-def _box_cox(log_u, lam):
-    """(u**lam - 1) / lam from log(u), without cancellation as lam -> 0."""
-    return log_u if lam == 0 else np.expm1(lam * log_u) / lam
-
-
-def _quantile_from_logs(log_y, log_s, param, param_type):
-    """Q from log(y) and log(s), where s = 1 - y, so neither tail ever forms `1 - y`."""
-    p1, p2, p3, p4 = param
-    with np.errstate(over="ignore"):
-        if param_type == "RS":
-            return p1 + (_pow_minus_one(log_y, p3) - _pow_minus_one(log_s, p4)) / p2
-        if param_type == "FMKL":
-            return p1 + (_box_cox(log_y, p3) - _box_cox(log_s, p4)) / p2
-        # delta = 0 or 1 removes a term entirely, also where its box-cox value is infinite.
-        lower = 0.0 if p3 == 1 else (1.0 - p3) * _box_cox(log_y, p4)
-        upper = 0.0 if p3 == 0 else p3 * _box_cox(log_s, p4)
-        return p1 + p2 * (lower - upper)
-
-
-def _log_density_from_logs(log_y, log_s, param, param_type):
-    """log f(y) = -log Q'(y), factoring out the larger term of Q' so nothing overflows."""
-    p1, p2, p3, p4 = param
-    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
-        if param_type == "VSL":
-            c3, c4, e3, e4, log_scale = 1.0 - p3, p3, p4 - 1.0, p4 - 1.0, -np.log(p2)
-        elif param_type == "FMKL":
-            c3, c4, e3, e4, log_scale = 1.0, 1.0, p3 - 1.0, p4 - 1.0, np.log(p2)
-        else:
-            c3, c4, e3, e4, log_scale = p3, p4, p3 - 1.0, p4 - 1.0, np.log(abs(p2))
-        a = -np.inf if c3 == 0 else np.log(abs(c3)) + (0.0 if e3 == 0 else e3 * log_y)
-        b = -np.inf if c4 == 0 else np.log(abs(c4)) + (0.0 if e4 == 0 else e4 * log_s)
-        m = np.maximum(a, b)
-        ok = np.isfinite(m)  # at y = 0 or 1 a term is infinite and the larger one alone decides
-        a, b, m0 = np.where(ok, a, 0.0), np.where(ok, b, 0.0), np.where(ok, m, 0.0)
-        inner = np.log(np.abs(np.sign(c3) * np.exp(a - m0) + np.sign(c4) * np.exp(b - m0)))
-        return log_scale - m - np.where(ok, inner, 0.0)
-
-
-def _density_from_y(y, param, param_type):
-    """f(y) = scale / |c3 y**e3 + c4 (1 - y)**e4|. A term with a zero coefficient is left out, also at y = 0 or 1."""
-    p1, p2, p3, p4 = param
-    if param_type == "VSL":
-        c3, c4, e3, e4, scale = 1.0 - p3, p3, p4 - 1.0, p4 - 1.0, 1.0 / p2
-    elif param_type == "FMKL":
-        c3, c4, e3, e4, scale = 1.0, 1.0, p3 - 1.0, p4 - 1.0, p2
-    else:
-        c3, c4, e3, e4, scale = p3, p4, p3 - 1.0, p4 - 1.0, abs(p2)
-    with np.errstate(divide="ignore", over="ignore"):
-        term3 = 0.0 if c3 == 0 else c3 * y**e3
-        term4 = 0.0 if c4 == 0 else c4 * (1.0 - y) ** e4
-        return scale / np.abs(term3 + term4)
-
-
-def _fmkl_lm_terms(l):
-    """FMKL L-moment terms in closed form: (-1/(1+l) + 2/(2+l)) / l = 1/((1+l)(2+l)), and so on.
-
-    The 1/l of the textbook sums cancels, so these stay finite and accurate at l = 0.
-    """
-    g2 = 1 / ((1 + l) * (2 + l))
-    g3 = (l - 1) * g2 / (3 + l)
-    g4 = (l - 1) * (l - 2) * g2 / ((3 + l) * (4 + l))
-    return g2, g3, g4
+# The arithmetic of Q and the density is shared with the torch backend, in _formulas.py.
+_box_cox = NUMPY.box_cox  # for constants inside (0, 1), in the percentile equations: nothing to silence
+_quantile_from_logs = _quiet(NUMPY.quantile_from_logs)
+_log_density_from_logs = _quiet(NUMPY.log_density_from_logs)
+_density_from_y = _quiet(NUMPY.density_from_y)
+_fmkl_lm_terms = NUMPY.fmkl_lm_terms
 
 
 class GLD:
@@ -309,16 +261,17 @@ class GLD:
 
         def f(t_i, x_i):
             """Auxiliary function for root finding."""
-            return _quantile_from_logs(-np.logaddexp(0.0, -t_i), -np.logaddexp(0.0, t_i), param, self.param_type) - x_i
+            return NUMPY.quantile_from_logs(-np.logaddexp(0.0, -t_i), -np.logaddexp(0.0, t_i), param, self.param_type) - x_i
 
-        for i in np.ndindex(x.shape):
-            if np.isnan(t[i]) and not np.isnan(x[i]):
-                if f(-_LOGIT_BOUND, x[i]) >= 0:
-                    t[i] = -_LOGIT_BOUND
-                elif f(_LOGIT_BOUND, x[i]) <= 0:
-                    t[i] = _LOGIT_BOUND
-                else:
-                    t[i] = optimize.brentq(f, -_LOGIT_BOUND, _LOGIT_BOUND, args=(x[i],), xtol=xtol, maxiter=500)
+        with np.errstate(all='ignore'):  # once around the loop: per evaluation it costs about 15%
+            for i in np.ndindex(x.shape):
+                if np.isnan(t[i]) and not np.isnan(x[i]):
+                    if f(-_LOGIT_BOUND, x[i]) >= 0:
+                        t[i] = -_LOGIT_BOUND
+                    elif f(_LOGIT_BOUND, x[i]) <= 0:
+                        t[i] = _LOGIT_BOUND
+                    else:
+                        t[i] = optimize.brentq(f, -_LOGIT_BOUND, _LOGIT_BOUND, args=(x[i],), xtol=xtol, maxiter=500)
         return t
 
     def CDF_num(self, x, param, xtol = 1e-08):

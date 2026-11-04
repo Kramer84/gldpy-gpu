@@ -6,6 +6,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from ._formulas import Formulas
+
 
 def _cuda_usable() -> bool:
     """True if CUDA is present AND the installed torch build ships kernels for this GPU.
@@ -123,105 +125,17 @@ def validate_gld_params(param: torch.Tensor, param_type: str) -> torch.Tensor:
 _START_TABLE_SIZE = 512
 _SMALL_STEP_FACTOR = 1000.0
 
-# Everything below is written in terms of log(y) and log(1 - y). Tail probabilities keep their
-# relative accuracy that way, because neither `1 - y` nor a power of a tiny number is ever formed.
-
-def _no_zero(values: torch.Tensor) -> bool:
-    return bool((values != 0).all())
-
-
-def _pow_from_log(log_u: torch.Tensor, lam: torch.Tensor) -> torch.Tensor:
-    """u**lam from log(u), with 0**0 = 1 as in NumPy."""
-    if _no_zero(lam):
-        return torch.exp(lam * log_u)
-    return torch.where(lam == 0, torch.ones_like(lam * 1.0), torch.exp(lam * log_u))
-
-
-def _pow_minus_one(log_u: torch.Tensor, lam: torch.Tensor) -> torch.Tensor:
-    """u**lam - 1 from log(u). RS uses y**a - s**b = (y**a - 1) - (s**b - 1), which avoids subtracting two numbers near 1."""
-    if _no_zero(lam):
-        return torch.expm1(lam * log_u)
-    return torch.where(lam == 0, torch.zeros_like(lam * 1.0), torch.expm1(lam * log_u))
-
-
-def _box_cox(log_u: torch.Tensor, lam: torch.Tensor) -> torch.Tensor:
-    """(u**lam - 1) / lam from log(u). No cancellation as lam -> 0, and autograd-safe in lam."""
-    tracks_lam = torch.is_grad_enabled() and lam.requires_grad
-    if not tracks_lam and _no_zero(lam):
-        return torch.expm1(lam * log_u) / lam  # expm1 keeps every digit; only d/dlam needs the series
-    z = lam * log_u
-    small = (lam == 0) | (z.abs() < 1e-3)
-    z_series = lam * torch.where(torch.isinf(log_u), torch.zeros_like(log_u), log_u)
-    series = log_u * (1.0 + z_series / 2.0 + z_series * z_series / 6.0)
-    safe_lam = torch.where(lam == 0, torch.ones_like(lam), lam)
-    return torch.where(small, series, torch.expm1(torch.where(lam == 0, torch.zeros_like(z), z)) / safe_lam)
-
-
-def _box_cox_power(u: torch.Tensor, lam: torch.Tensor) -> torch.Tensor:
-    """(u**lam - 1) / lam."""
-    return _box_cox(torch.log(u), lam)
-
-
-def _quantile_from_logs(log_y: torch.Tensor, log_s: torch.Tensor, param: torch.Tensor, param_type: str) -> torch.Tensor:
-    """Q from log(y) and log(s), where s = 1 - y."""
-    p1, p2, p3, p4 = param.unbind(dim=-1)
-    if param_type == "RS":
-        return p1 + (_pow_minus_one(log_y, p3) - _pow_minus_one(log_s, p4)) / p2
-    if param_type == "FMKL":
-        return p1 + (_box_cox(log_y, p3) - _box_cox(log_s, p4)) / p2
-    if param_type == "VSL":
-        lower, upper = (1.0 - p3) * _box_cox(log_y, p4), p3 * _box_cox(log_s, p4)
-        if not (_no_zero(p3) and _no_zero(1.0 - p3)):
-            # delta = 0 or 1 removes a term entirely, also where its box-cox value is infinite.
-            lower = torch.where(p3 == 1, torch.zeros_like(lower), lower)
-            upper = torch.where(p3 == 0, torch.zeros_like(upper), upper)
-        return p1 + p2 * (lower - upper)
-    raise ValueError(f"Unknown parameterization '{param_type}'.")
-
-
-def _density_terms(param: torch.Tensor, param_type: str) -> Tuple[torch.Tensor, ...]:
-    """(c3, c4, e3, e4, log_scale) such that f(y) = exp(log_scale) / |c3 y**e3 + c4 (1 - y)**e4|."""
-    p1, p2, p3, p4 = param.unbind(dim=-1)
-    if param_type == "RS":
-        return p3, p4, p3 - 1.0, p4 - 1.0, torch.log(p2.abs())
-    if param_type == "FMKL":
-        return torch.ones_like(p3), torch.ones_like(p4), p3 - 1.0, p4 - 1.0, torch.log(p2)
-    if param_type == "VSL":
-        return 1.0 - p3, p3, p4 - 1.0, p4 - 1.0, -torch.log(p2)
-    raise ValueError(f"Unknown parameterization '{param_type}'.")
-
-
-def _log_density_from_logs(
-    log_y: torch.Tensor, log_s: torch.Tensor, param: torch.Tensor, param_type: str, interior: bool = False
-) -> torch.Tensor:
-    """log f(y) = -log Q'(y). Q' = c3 y**e3 + c4 s**e4 is summed after factoring out its larger term.
-
-    `interior=True` promises finite log_y and log_s, which skips the handling of the endpoints.
-    """
-    c3, c4, e3, e4, log_scale = _density_terms(param, param_type)
-    if interior and _no_zero(c3) and _no_zero(c4):
-        term3, term4 = e3 * log_y, e4 * log_s
-        log_c3, log_c4 = torch.log(c3.abs()), torch.log(c4.abs())
-        m = torch.maximum(log_c3 + term3, log_c4 + term4).detach()
-        return log_scale - m - torch.log((c3 * torch.exp(term3 - m) + c4 * torch.exp(term4 - m)).abs())
-
-    # 0 * inf terms are 0: a term with zero exponent is constant even at y = 0.
-    term3 = torch.where(e3 == 0, torch.zeros_like(e3 * 1.0), e3 * log_y)
-    term4 = torch.where(e4 == 0, torch.zeros_like(e4 * 1.0), e4 * log_s)
-    # `m` is only a scaling constant, so it is detached. log|c| has an infinite gradient at c = 0
-    # (VSL delta on its bounds), which would turn into NaN if it were differentiated through max().
-    neg_inf = torch.full_like(log_scale, -float("inf"))
-    m = torch.maximum(
-        torch.where(c3 == 0, neg_inf, torch.log(c3.abs()) + term3),
-        torch.where(c4 == 0, neg_inf, torch.log(c4.abs()) + term4),
-    ).detach()
-    ok = torch.isfinite(m)  # at y = 0 or 1 one term is infinite and decides alone
-    m0 = torch.where(ok, m, torch.zeros_like(m))
-    limit = 0.5 * torch.log(torch.as_tensor(torch.finfo(m.dtype).max, dtype=m.dtype, device=m.device))
-    exp3 = torch.exp(torch.clamp(torch.where(ok, term3 - m0, torch.zeros_like(m0)), max=limit))
-    exp4 = torch.exp(torch.clamp(torch.where(ok, term4 - m0, torch.zeros_like(m0)), max=limit))
-    inner = torch.log((c3 * exp3 + c4 * exp4).abs())
-    return log_scale - m - torch.where(ok, inner, torch.zeros_like(inner))
+# The arithmetic of Q and the density is shared with the NumPy class, in _formulas.py.
+FORMULAS = Formulas(
+    torch,
+    unpack=lambda param: param.unbind(dim=-1),
+    detach=lambda x: x.detach(),
+    tracks_gradient=lambda x: torch.is_grad_enabled() and x.requires_grad,
+)
+_pow_minus_one = FORMULAS.pow_minus_one
+_box_cox = FORMULAS.box_cox
+_quantile_from_logs = FORMULAS.quantile_from_logs
+_log_density_from_logs = FORMULAS.log_density_from_logs
 
 
 def compute_quantile(y: torch.Tensor, param: torch.Tensor, param_type: str) -> torch.Tensor:
@@ -231,11 +145,7 @@ def compute_quantile(y: torch.Tensor, param: torch.Tensor, param_type: str) -> t
 
 def compute_pdf_quantile(y: torch.Tensor, param: torch.Tensor, param_type: str) -> torch.Tensor:
     """Evaluate density quantile function f_Q(y) = 1 / Q'(y). Underflows to 0 far out; see `log_PDF_num`."""
-    c3, c4, e3, e4, log_scale = _density_terms(param, param_type)
-    zero = torch.zeros_like(log_scale)
-    term3 = torch.where(c3 == 0, zero, c3 * _pow_from_log(torch.log(y), e3))
-    term4 = torch.where(c4 == 0, zero, c4 * _pow_from_log(torch.log1p(-y), e4))
-    return torch.exp(log_scale) / (term3 + term4).abs()
+    return FORMULAS.density_from_y(y, param, param_type)
 
 
 def _table_start(x: torch.Tensor, param: torch.Tensor, param_type: str, bound: torch.Tensor) -> torch.Tensor:
@@ -646,29 +556,23 @@ def _lmm_equations(param_type: str, a1: torch.Tensor, a2: torch.Tensor, a3: torc
     """
     rs = param_type == "RS"
 
-    def g2(l):
-        v = 1.0 / ((1.0 + l) * (2.0 + l))
-        return l * v if rs else v
-
-    def g3(l):
-        v = (l - 1.0) / ((1.0 + l) * (2.0 + l) * (3.0 + l))
-        return l * v if rs else v
-
-    def g4(l):
-        v = (l - 1.0) * (l - 2.0) / ((1.0 + l) * (2.0 + l) * (3.0 + l) * (4.0 + l))
-        return l * v if rs else v
+    def terms(l):
+        g2, g3, g4 = FORMULAS.fmkl_lm_terms(l)
+        return (l * g2, l * g3, l * g4) if rs else (g2, g3, g4)
 
     def residual_fn(l3, l4):
         # L-moments exist only for lambda > -1; the formulas alone would not notice.
         exists = (l3 > -1.0) & (l4 > -1.0)
-        scale = g2(l3) + g2(l4)
-        r1 = (g3(l3) - g3(l4)) / scale - a3
-        r2 = (g4(l3) + g4(l4)) / scale - a4
+        g2_3, g3_3, g4_3 = terms(l3)
+        g2_4, g3_4, g4_4 = terms(l4)
+        scale = g2_3 + g2_4
+        r1 = (g3_3 - g3_4) / scale - a3
+        r2 = (g4_3 + g4_4) / scale - a4
         nan = torch.full_like(r1, float("nan"))
         return torch.where(exists, r1, nan), torch.where(exists, r2, nan)
 
     def param_fn(l3, l4):
-        l2 = (g2(l3) + g2(l4)) / a2
+        l2 = (terms(l3)[0] + terms(l4)[0]) / a2
         shift = 1.0 / (1.0 + l4) - 1.0 / (1.0 + l3)
         l1 = a1 + (shift if rs else -shift) / l2
         return torch.stack([l1, l2, l3, l4], dim=-1)

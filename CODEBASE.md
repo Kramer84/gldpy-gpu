@@ -7,6 +7,7 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 | `gldpy_gpu/__init__.py` | Exports CPU `GLD`, `__version__`; lazy-loads `gpu` (PEP 562) | `gldpy_gpu.GLD`, `gldpy_gpu.gpu` |
 | `gldpy_gpu/_gld_module.py` | Corrected NumPy/SciPy `GLD`, derived from `gldpy` 0.2; corrections are listed in `docs/upstream-bugs.md` | `GLD` |
 | `gldpy_gpu/gpu.py` | Backend selector: torch if importable, else NumPy fallback. `BACKEND`; forwards other names to the backend | `gpu.GLD` |
+| `gldpy_gpu/_formulas.py` | The formulas of Q and the density, once, for both libraries: `Formulas(xp, ...)` with the adapters `NUMPY` here and `FORMULAS` in the torch backend. Must not import torch | `Formulas` |
 | `gldpy_gpu/_torch_backend.py` | Torch implementation | `GLD` |
 | `gldpy_gpu/_numpy_fallback.py` | Torch-free `gpu.GLD`: the NumPy class with the torch call signatures, warns on construction | `GLD` |
 | `tests/` | pytest, GPU-vs-CPU parity; `device` fixture = cpu (+ cuda if usable) | `conftest.py` |
@@ -23,7 +24,7 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 
 ## _torch_backend.py
 - Device: `_cuda_usable()` (probes kernels, warns and falls back to CPU), `_default_device()`.
-- Core works on log(y) and log(1-y): `_box_cox`, `_pow_minus_one`, `_pow_from_log`, `_quantile_from_logs`, `_density_terms`, `_log_density_from_logs`, plus y-based `compute_quantile`, `compute_pdf_quantile`. Sampling: `_sample_log_uniform`.
+- Core: bound from `FORMULAS` (`_box_cox`, `_pow_minus_one`, `_quantile_from_logs`, `_log_density_from_logs`), plus y-based `compute_quantile`, `compute_pdf_quantile`. Sampling: `_sample_log_uniform`.
 - CDF: `solve_logit_cdf` (safeguarded Newton on logit(y), `_table_start`, retires finished elements, optional warm start), wrapper `invert_quantile_newton_bisect`.
 - Statistics: `compute_sample_lmoments`, `compute_sample_percentiles`, `_require_fit_data`.
 - Fit solvers run on the CPU, in the data's dtype: `solve_shape_multistart` (grid, then `_levenberg_marquardt` from each local minimum, then lowest Q-Q among exact roots), `_lmm_equations`, `_pm_equations`, `_solve_vsl_pm`, `solve_vsl_lmm_closed_form`, `_with_support_covering` (for `fit_ML`).
@@ -37,6 +38,7 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 - `test_analytic.py` fits of exactly known distributions and published values.
 - `test_gpu_tails.py` tails against closed forms (logistic, exponential, Pareto), float32/float64, `rand` tails.
 - `test_gpu_dtype.py` the dtype rule, with a `TorchFunctionMode` that fails on any tensor of the wrong precision.
+- `test_gpu_formulas.py` the NumPy and torch adapters give the same numbers, and neither class keeps its own copy.
 - `test_gpu_fast_paths.py` optimized paths against the general ones, solver iteration budgets.
 - `test_gpu_fit_quality.py` fits against the CPU oracle, multiple roots, scale invariance, bad data, support.
 - `test_optional_torch.py` torch-blocked subprocess runs and the NumPy fallback; runs without torch (conftest then skips `test_gpu_*`).

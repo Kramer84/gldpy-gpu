@@ -68,6 +68,10 @@ defect against the real PyPI package and shows the correction, and it checks tha
 - **Large data.** `fit_PM` failed above 2**24 points because of `torch.quantile`.
 - **Bad data.** Fits raise `ValueError` on NaN, infinite or constant data.
 
+### Structure
+
+- `_formulas.py` holds the formulas of Q and the density once, for both the NumPy class and the torch backend.
+
 ### Performance
 
 Measured on a GTX 1070, in [docs/benchmarks.md](docs/benchmarks.md). The log-space evaluation has more operations per element, and the optimizations more than recover that cost.
