@@ -8,7 +8,11 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 | `gldpy_gpu/_gld_module.py` | Corrected NumPy/SciPy `GLD`, derived from `gldpy` 0.2; corrections are listed in `docs/upstream-bugs.md` | `GLD` |
 | `gldpy_gpu/gpu.py` | Backend selector: torch if importable, else NumPy fallback. `BACKEND`; forwards other names to the backend | `gpu.GLD` |
 | `gldpy_gpu/_formulas.py` | The formulas of Q and the density, once, for both libraries: `Formulas(xp, ...)` with the adapters `NUMPY` here and `FORMULAS` in the torch backend. Must not import torch | `Formulas` |
-| `gldpy_gpu/_torch_backend.py` | Torch implementation | `GLD` |
+| `gldpy_gpu/_torch_backend.py` | Torch `GLD` class, device selection, dtype rule; re-exports the helpers of the modules below, for `gpu.py` | `GLD` |
+| `gldpy_gpu/_torch_core.py` | Parameter validity, the torch `Formulas` adapter, Q and density from y, tail-accurate sampling | `validate_gld_params`, `FORMULAS`, `compute_quantile` |
+| `gldpy_gpu/_torch_solve.py` | Batched CDF solver | `solve_logit_cdf` |
+| `gldpy_gpu/_torch_stats.py` | Sample L-moments and percentiles, fit data checks | `compute_sample_lmoments`, `compute_sample_percentiles` |
+| `gldpy_gpu/_torch_fit.py` | Fit solvers, run on the CPU in the data's dtype | `solve_shape_multistart` |
 | `gldpy_gpu/_numpy_fallback.py` | Torch-free `gpu.GLD`: the NumPy class with the torch call signatures, warns on construction | `GLD` |
 | `tests/` | pytest, GPU-vs-CPU parity; `device` fixture = cpu (+ cuda if usable) | `conftest.py` |
 | `benchmarks/bench_gpu.py` | Timings across backends and sizes, and speed factors; output in `benchmarks/results/` (gitignored) | `main()` |
@@ -22,14 +26,13 @@ Read this before exploring. Fork of upstream `gldpy` adding a PyTorch/CUDA backe
 | `dist/` | Build output (generated, gitignored) | |
 | `ROADMAP.md` | Phases and bug log | |
 
-## _torch_backend.py
-- Device: `_cuda_usable()` (probes kernels, warns and falls back to CPU), `_default_device()`.
-- Core: bound from `FORMULAS` (`_box_cox`, `_pow_minus_one`, `_quantile_from_logs`, `_log_density_from_logs`), plus y-based `compute_quantile`, `compute_pdf_quantile`. Sampling: `_sample_log_uniform`.
-- CDF: `solve_logit_cdf` (safeguarded Newton on logit(y), `_table_start`, retires finished elements, optional warm start), wrapper `invert_quantile_newton_bisect`.
-- Statistics: `compute_sample_lmoments`, `compute_sample_percentiles`, `_require_fit_data`.
-- Fit solvers run on the CPU, in the data's dtype: `solve_shape_multistart` (grid, then `_levenberg_marquardt` from each local minimum, then lowest Q-Q among exact roots), `_lmm_equations`, `_pm_equations`, `_solve_vsl_pm`, `solve_vsl_lmm_closed_form`, `_with_support_covering` (for `fit_ML`).
-- Dtype rule: `GLD._resolve_dtype`, `_as_dtype`.
-- `GLD` class: `check_param`, `Q`, `ISF`, `PDF_Q`, `supp`, `CDF_num`, `SF_num`, `PDF_num`, `log_PDF_num`, `rand`, `GoF_Q_metric`, `correct_supp`, `fit_LMM`, `fit_PM`, `fit_ML`. Param types: RS, FMKL, VSL.
+## Torch modules
+Imports go one way: `_formulas` <- `_torch_core` <- `_torch_solve`, `_torch_fit` <- `_torch_backend`; `_torch_stats` imports none of them.
+- `_torch_backend.py`: `_cuda_usable()` (probes kernels, warns and falls back to CPU), `_default_device()`, `_as_dtype`, and `GLD` with `_resolve_dtype`, `check_param`, `Q`, `ISF`, `PDF_Q`, `supp`, `CDF_num`, `SF_num`, `PDF_num`, `log_PDF_num`, `rand`, `GoF_Q_metric`, `correct_supp`, `fit_LMM`, `fit_PM`, `fit_ML`. Param types: RS, FMKL, VSL.
+- `_torch_core.py`: `validate_gld_params`, bindings from `FORMULAS` (`_box_cox`, `_pow_minus_one`, `_quantile_from_logs`, `_log_density_from_logs`), y-based `compute_quantile`, `compute_pdf_quantile`, `_plotting_logs`, `_sample_log_uniform`.
+- `_torch_solve.py`: `solve_logit_cdf` (safeguarded Newton on logit(y), `_table_start`, retires finished elements, optional warm start), wrapper `invert_quantile_newton_bisect`.
+- `_torch_stats.py`: `compute_sample_lmoments`, `compute_sample_percentiles`, `_require_fit_data`.
+- `_torch_fit.py`: `solve_shape_multistart` (grid, then `_levenberg_marquardt` from each local minimum, then lowest Q-Q among exact roots), `_lmm_equations`, `_pm_equations`, `_solve_vsl_pm`, `solve_vsl_lmm_closed_form`, `_with_support_covering` (for `fit_ML`).
 - Not ported: `mean`, `var`, `std`, `skewness`, `kurtosis`, `median`, `GoF_tests`, `plot_*`, `grid_search`, `fit_MM`, `fit_MPS`, `fit_starship`, `fit_curve` (NumPy `GLD` only; see ROADMAP "Later").
 
 ## tests/

@@ -8,7 +8,7 @@ adding a PyTorch/CUDA backend. PyPI name: **gldpy-gpu**; import name is **`gldpy
 - `gldpy_gpu/_gld_module.py` — NumPy/SciPy `GLD`, corrected from `gldpy` 0.2 (see `docs/upstream-bugs.md`).
 - `gldpy_gpu/gpu.py` — picks the backend, loaded lazily via `gldpy_gpu.gpu` (PEP 562 in `__init__.py`).
 - `gldpy_gpu/_formulas.py` — the formulas of Q and the density, once, for NumPy and torch. Change the math here, not in either class. Must not import torch.
-- `gldpy_gpu/_torch_backend.py` — torch `GLD` class + helpers.
+- `gldpy_gpu/_torch_backend.py` — torch `GLD` class, device selection, dtype rule. Numerics in `_torch_core.py` (validity, Q, density, sampling), `_torch_solve.py` (CDF), `_torch_stats.py` (L-moments, percentiles), `_torch_fit.py` (fit solvers).
 - `gldpy_gpu/_numpy_fallback.py` — used when torch is missing: warns, same calls, runs on NumPy.
 - `tests/` — pytest. GPU-vs-CPU parity tests; device fixture runs on `cpu` and, if present, `cuda`.
 - `benchmarks/` — CPU-vs-GPU speed scripts (`bench_gpu.py`), results in `benchmarks/results/` (gitignored).
@@ -49,4 +49,4 @@ Verify with `torch.cuda.get_arch_list()` containing `sm_61`.
 - Generated, do not edit: `uv.lock`, `dist/`, `.venv/`, `benchmarks/results/`.
 - Remote: `origin` = git@github.com:Kramer84/gldpy-gpu.git. No secrets/`.env` in this repo.
 
-Last validated against the real files: 2026-11-04 (`uv run pytest -m "not gpu_speed"`: 1374 passed, 6 skipped; `-m gpu_speed`: 2 passed).
+Last validated against the real files: 2026-11-04 (`uv run pytest -m "not gpu_speed"`: 1376 passed, 6 skipped; `-m gpu_speed`: 2 passed).

@@ -4,6 +4,10 @@ import pytest
 import torch
 
 from gldpy_gpu import _torch_backend as backend
+from gldpy_gpu import _torch_core as core
+from gldpy_gpu import _torch_fit as fit
+from gldpy_gpu import _torch_solve as solve
+from gldpy_gpu import _torch_stats as stats
 from gldpy_gpu._formulas import NUMPY
 
 TORCH = backend.FORMULAS
@@ -95,6 +99,7 @@ def test_each_formula_exists_once():
 
     import gldpy_gpu._gld_module as np_module
 
-    for source in (inspect.getsource(np_module), inspect.getsource(backend)):
+    modules = (np_module, core, solve, stats, fit, backend)
+    for source in map(inspect.getsource, modules):
         assert "def _fmkl_lm_terms" not in source and "def _density_terms" not in source
         assert "expm1" not in source.split("class GLD")[0].replace("math.expm1", "")

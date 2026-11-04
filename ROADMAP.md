@@ -49,7 +49,7 @@ Legend: [x] done, [ ] todo
 ## Structure
 Candidates, not done, in order of value:
 1. [x] One math core: `_formulas.py`, for Q, the density and the L-moment terms. Still in both classes: the CDF solvers, which differ on purpose (batched Newton and per-element Brent), and the fit equations.
-2. Split `_torch_backend.py` (about 900 lines) into `core`, `solve`, `stats`, `fit` modules, keeping `GLD` as the deep interface.
+2. [x] Split `_torch_backend.py` into `_torch_core`, `_torch_solve`, `_torch_stats`, `_torch_fit`, with `GLD` as the interface. The code moved unchanged.
 3. A separate result type for fits, in place of the `disp_*`/`test_gof` flags that mix computing with printing in `_gld_module.py`.
 4. Separate plotting from computation, so that matplotlib becomes optional as well.
 - Batched fitting (many datasets at once)

@@ -71,6 +71,7 @@ defect against the real PyPI package and shows the correction, and it checks tha
 ### Structure
 
 - `_formulas.py` holds the formulas of Q and the density once, for both the NumPy class and the torch backend.
+- `_torch_backend.py` is split into `_torch_core.py`, `_torch_solve.py`, `_torch_stats.py` and `_torch_fit.py`. The code moved unchanged, and the helpers stay importable from `gldpy_gpu.gpu`.
 - `pytest --changed` runs only the tests the edits since the last run can affect, through pytest-testmon (dev dependency, Python 3.10+).
 
 ### Performance
